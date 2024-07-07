@@ -1,26 +1,53 @@
-import argparse
-from file_manager import get_files, ThreadSearcher
+import threading
+from typing import Dict, List
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from file_manager import search_in_file
+import pathlib
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Search some files")
-    parser.add_argument("-f", "--file-path", required=True)
-    parser.add_argument("-p", "--patterns", nargs="*", required=True)
-    parser.add_argument("-n", "--num-threads", type=int, default=1)
-    args = parser.parse_args()
+class FileSearcher(threading.Thread):
+    def __init__(self, files: List[pathlib.PosixPath], search: str, res: List[str], max_workers: int = 1):
+        super().__init__()
+        self.files = files
+        self.search = search
+        self.res = res
+        self.max_workers = max_workers
 
-    files = get_files(args.file_path)
-
-    results = {}
-    searcher = ThreadSearcher(files, args.patterns, results, args.num_threads)
-    searcher.start()
-    searcher.join()
-    for results in results.items():
-        print(f"Pattern: {results[0]}")
-        for file in results[1]:
-            print(f"File: {file}")
-
+    def run(self):
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            future_to_file = {executor.submit(search_in_file, file, self.search, self.res): file for file in self.files}
+            for future in as_completed(future_to_file):
+                file = future_to_file[future]
+                try:
+                    future.result()
+                except Exception as e:
+                    logging.error(f"Error searching in file {file}: {e}")
 
 
-if __name__ == "__main__":
-    main()
+class ThreadSearcher(threading.Thread):
+    def __init__(self, files: List[pathlib.PosixPath], search: List[str], res: Dict[str, List[str]],
+                 max_workers: int = 1):
+        super().__init__()
+        self.files = files
+        self.search = search
+        self.res = res
+        self.max_workers = max_workers
+
+    def run(self):
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            future_to_searcher = {}
+            for pattern in self.search:
+                self.res[pattern] = []
+                searcher = FileSearcher(self.files, pattern, self.res[pattern], self.max_workers)
+                future = executor.submit(searcher.run)
+                future_to_searcher[future] = searcher
+
+            for future in as_completed(future_to_searcher):
+                searcher = future_to_searcher[future]
+                try:
+                    future.result()
+                except Exception as e:
+                    logging.error(f"Error in searcher {searcher}: {e}")
