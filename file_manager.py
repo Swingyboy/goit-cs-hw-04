@@ -1,7 +1,6 @@
 import pathlib
-import threading
 from typing import Dict, List
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 
 
 def check_path(path):
@@ -27,32 +26,10 @@ def search_in_file(file: pathlib.PosixPath, search: str, res: list) -> bool:
     return False
 
 
-class FileSearcher(threading.Thread):
-    def __init__(self, files: List[pathlib.PosixPath], search: str, res: List[str], max_workers: int = 1):
-        super().__init__()
-        self.files = files
-        self.search = search
-        self.res = res
-        self.max_workers = max_workers
-
-    def run(self):
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            for file in self.files:
-                executor.submit(search_in_file, file, self.search, self.res)
 
 
-class ThreadSearcher(threading.Thread):
-    def __init__(self, files: List[pathlib.PosixPath], search: List[str], res: Dict[str, List[str]], max_workers: int = 1):
-        super().__init__()
-        self.files = files
-        self.search = search
-        self.res = res
-        self.max_workers = max_workers
 
-    def run(self):
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            for pattern in self.search:
-                self.res[pattern] = []
-                searcher = FileSearcher(self.files, pattern, self.res[pattern], self.max_workers)
-                executor.submit(searcher.run)
+
+
+
 
