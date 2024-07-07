@@ -1,4 +1,5 @@
 import argparse
+import timeit
 from file_manager import get_files
 from threading_search import ThreadSearcher
 from process_search import ProcessSearcher
@@ -13,14 +14,17 @@ def main():
 
     files = get_files(args.file_path)
 
-    results = {}
-    searcher = ProcessSearcher(files, args.patterns, results, args.num_threads)
-    searcher.run()
-    for results in results.items():
-        print(f"Pattern: {results[0]}")
-        for file in results[1]:
-            print(f"File: {file}")
+    for Searcher in [ThreadSearcher, ProcessSearcher]:
+        searcher = Searcher(files, args.patterns, {}, args.num_threads)
+        time_taken = timeit.timeit(lambda: searcher.run(), number=5)
+        results = searcher.res
 
+        print(f"Time taken for {Searcher.__name__}: {time_taken}")
+        print(f"Results for {Searcher.__name__}:")
+        for pattern, res in results.items():
+            print(f"Pattern: {pattern}")
+            for file in res:
+                print(f"\t{file}")
 
 
 if __name__ == "__main__":
